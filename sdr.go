@@ -84,6 +84,7 @@ func (r *sdrRaw) Unmarshal(buf []byte) ([]byte, error) {
 
 // Intersection of FullSensor and CompactSensor
 type SDRCommonSensor struct {
+	args *Arguments
 	data []byte
 
 	OwnerID       uint8
@@ -283,6 +284,13 @@ func (r *SDRFullSensor) IsThresholdBaseSensor() bool {
 
 // Returns `true` if sensor has an analog reading.
 func (r *SDRFullSensor) IsAnalogReading() bool {
+	// There is a discrete sensor that returns an analog reading.
+	if r.args != nil && r.args.Discretereading {
+		return r.SensorUnits.Analog < 0x03 && (r.IsThresholdBaseSensor() ||
+			r.SensorUnits.Percentage || r.SensorUnits.Modifier != 0 ||
+			r.SensorUnits.BaseType != 0 || r.SensorUnits.ModifierType != 0)
+	}
+
 	return r.SensorUnits.Analog < 0x03 && r.IsThresholdBaseSensor()
 }
 
@@ -483,7 +491,7 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 	// TODO Add a new record type
 	switch t := header.RecordType; t {
 	case SDRTypeFullSensor:
-		r := &SDRFullSensor{}
+		r := &SDRFullSensor{SDRCommonSensor: SDRCommonSensor{args: c.args}}
 		if _, err := r.Unmarshal(buf); err != nil {
 			return nil, err
 		}

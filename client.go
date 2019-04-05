@@ -48,6 +48,12 @@ type Arguments struct {
 	Password       string         // Remote server password
 	PrivilegeLevel PrivilegeLevel // Session privilege level (The default is `Administrator`)
 	CipherSuiteID  uint           // ID of cipher suite, See Table 22-20 (The default is `0` which no auth and no encrypt)
+
+	// Workaround options
+
+	// Will allow to get analog sensor readings of a discrete sensor
+	// (For details, see to freeipmi's same name option)
+	Discretereading bool
 }
 
 func (a *Arguments) setDefault() {
@@ -116,6 +122,7 @@ func (a *Arguments) validate() error {
 // IPMI Client
 type Client struct {
 	session session
+	args    *Arguments
 }
 
 func (c *Client) Ping() error               { return c.session.Ping() }
@@ -137,5 +144,5 @@ func NewClient(args Arguments) (*Client, error) {
 	case V2_0:
 		s = newSessionV2_0(&args)
 	}
-	return &Client{session: s}, nil
+	return &Client{session: s, args: &args}, nil
 }
