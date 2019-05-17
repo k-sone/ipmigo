@@ -302,7 +302,7 @@ func (r *SDRFullSensor) ConvertSensorReading(value uint8) float64 {
 	switch r.SensorUnits.Analog {
 	// unsigned
 	case 0:
-		result = (float64(r.M*int16(value)) + float64(r.B)*math.Pow10(int(r.BExp))) * math.Pow10(int(r.RExp))
+		result = (float64(int(r.M)*int(value)) + float64(r.B)*math.Pow10(int(r.BExp))) * math.Pow10(int(r.RExp))
 	// 1's complement
 	case 1:
 		if value&0x80 != 0 {
@@ -311,7 +311,7 @@ func (r *SDRFullSensor) ConvertSensorReading(value uint8) float64 {
 		fallthrough
 	// 2's complement
 	case 2:
-		result = (float64(r.M*int16(int8(value))) + float64(r.B)*math.Pow10(int(r.BExp))) * math.Pow10(int(r.RExp))
+		result = (float64(int(r.M)*int(int8(value))) + float64(r.B)*math.Pow10(int(r.BExp))) * math.Pow10(int(r.RExp))
 	default:
 		// Not analog sensor
 		return 0.0
@@ -331,11 +331,11 @@ func (r *SDRFullSensor) ConvertSensorReading(value uint8) float64 {
 	case 0x06:
 		return math.Exp2(result)
 	case 0x07:
-		return math.Mod(1.0, result)
+		return math.Pow(result, -1.0)
 	case 0x08:
 		return math.Pow(result, 2.0)
 	case 0x09:
-		return math.Pow(result, 4.0)
+		return math.Pow(result, 3.0)
 	case 0x0a:
 		return math.Sqrt(result)
 	case 0x0b:
