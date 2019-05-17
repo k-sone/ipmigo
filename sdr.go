@@ -471,8 +471,8 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 
 	for n := uint8(0); n < header.RemainingBytes; {
 		r := header.RemainingBytes - n
-		if r > sdrDefaultReadBytes {
-			r = sdrDefaultReadBytes
+		if r > c.sdrReadingBytes {
+			r = c.sdrReadingBytes
 		}
 
 		gsc := &GetSDRCommand{
@@ -482,6 +482,15 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 			ReadBytes:     r,
 		}
 		if err := c.Execute(gsc); err != nil {
+			// Adjust to the upper limit that BMC can be responded
+			if e, ok := err.(*CommandError); ok && e.CompletionCode == CompletionRequestDataFieldExceedEd {
+				c.sdrReadingBytes -= 8
+				if c.sdrReadingBytes < sdrHeaderSize {
+					c.sdrReadingBytes = sdrHeaderSize
+				} else {
+					continue
+				}
+			}
 			return nil, err
 		}
 		copy(buf[n:], gsc.RecordData)

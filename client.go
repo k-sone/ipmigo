@@ -123,6 +123,8 @@ func (a *Arguments) validate() error {
 type Client struct {
 	session session
 	args    *Arguments
+
+	sdrReadingBytes uint8 // for GetSDRCommand(byte to read of each BMC)
 }
 
 func (c *Client) Ping() error               { return c.session.Ping() }
@@ -144,5 +146,5 @@ func NewClient(args Arguments) (*Client, error) {
 	case V2_0:
 		s = newSessionV2_0(&args)
 	}
-	return &Client{session: s, args: &args}, nil
+	return &Client{session: s, args: &args, sdrReadingBytes: sdrDefaultReadBytes}, nil
 }
