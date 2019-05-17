@@ -38,5 +38,5 @@ type CommandError struct {
 }
 
 func (e *CommandError) Error() string {
-	return fmt.Sprintf("Command %s(%02x) failed - %s", e.Command.Name(), e.Command.Code(), e.CompletionCode)
+	return fmt.Sprintf("Command %s(0x%02x) failed - %s", e.Command.Name(), e.Command.Code(), e.CompletionCode)
 }
