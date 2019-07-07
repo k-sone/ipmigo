@@ -17,6 +17,7 @@ const (
 
 	sdrCommonSensorSize     = 18
 	sdrFullSensorSize       = 25 + sdrCommonSensorSize
+	sdrCompactSensorSize    = 9 + sdrCommonSensorSize
 	sdrFRUDeviceLocatorSize = 11
 )
 
@@ -185,6 +186,26 @@ func (r *SDRCommonSensor) Unmarshal(buf []byte) ([]byte, error) {
 	return buf[sdrCommonSensorSize:], nil
 }
 
+func (r *SDRCommonSensor) UnitString() string {
+	var s string
+	switch r.SensorUnits.Modifier {
+	case 0x01:
+		s = fmt.Sprintf("%s/%s", r.SensorUnits.BaseType, r.SensorUnits.ModifierType)
+	case 0x02:
+		s = fmt.Sprintf("%s * %s", r.SensorUnits.BaseType, r.SensorUnits.ModifierType)
+	default:
+		if r.SensorUnits.BaseType == 0 && r.SensorUnits.Percentage {
+			return "percent"
+		}
+		s = r.SensorUnits.BaseType.String()
+	}
+
+	if r.SensorUnits.Percentage {
+		s = "% " + s
+	}
+	return s
+}
+
 // Full Sensor Record (Section 43.1)
 type SDRFullSensor struct {
 	SDRCommonSensor
@@ -351,24 +372,62 @@ func (r *SDRFullSensor) ConvertSensorReading(value uint8) float64 {
 	}
 }
 
-func (r *SDRFullSensor) UnitString() string {
-	var s string
-	switch r.SensorUnits.Modifier {
-	case 0x01:
-		s = fmt.Sprintf("%s/%s", r.SensorUnits.BaseType, r.SensorUnits.ModifierType)
-	case 0x02:
-		s = fmt.Sprintf("%s * %s", r.SensorUnits.BaseType, r.SensorUnits.ModifierType)
-	default:
-		if r.SensorUnits.BaseType == 0 && r.SensorUnits.Percentage {
-			return "percent"
-		}
-		s = r.SensorUnits.BaseType.String()
+// Compact Sensor Record (Section 43.2)
+type SDRCompactSensor struct {
+	SDRCommonSensor
+
+	Share struct {
+		Count          uint8
+		ModifierType   uint8 // (0: numeric, 1: alpha)
+		ModifierOffset uint8
+		EntityInstance uint8 // (0: same, 1: increments)
 	}
 
-	if r.SensorUnits.Percentage {
-		s = "% " + s
+	Threshold struct {
+		PositiveHysteresis uint8
+		NegativeHysteresis uint8
 	}
-	return s
+
+	OEM      uint8
+	IDType   uint8
+	IDLength uint8
+	IDString []byte
+}
+
+func (r *SDRCompactSensor) Unmarshal(buf []byte) ([]byte, error) {
+	if l := len(buf); l < sdrCompactSensorSize {
+		return nil, &MessageError{
+			Message: fmt.Sprintf("Invalid SDRCompactSensor size : %d/%d", l, sdrCompactSensorSize),
+			Detail:  hex.EncodeToString(buf),
+		}
+	}
+
+	buf, err := r.SDRCommonSensor.Unmarshal(buf)
+	if err != nil {
+		return nil, err
+	}
+
+	r.Share.Count = buf[0] & 0x0f
+	r.Share.ModifierType = buf[0] & 0x30 >> 4
+	r.Share.ModifierOffset = buf[1] & 0x7f
+	r.Share.EntityInstance = buf[2] & 0x80 >> 7
+	r.Threshold.PositiveHysteresis = buf[2]
+	r.Threshold.NegativeHysteresis = buf[3]
+	r.OEM = buf[7]
+	r.IDType = buf[8] & 0xc0 >> 6
+	r.IDLength = buf[8] & 0x1f
+	if l := int(r.IDLength); l > 0 {
+		r.IDString = buf[9:]
+		if l < len(r.IDString) {
+			r.IDString = r.IDString[:l]
+		}
+	}
+
+	return nil, nil
+}
+
+func (r *SDRCompactSensor) SensorID() string {
+	return decodeSensorID(r.IDType, r.IDString)
 }
 
 // FRU Device Locator Record (Section 43.8)
@@ -508,6 +567,12 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 	switch t := header.RecordType; t {
 	case SDRTypeFullSensor:
 		r := &SDRFullSensor{SDRCommonSensor: SDRCommonSensor{args: c.args, header: header}}
+		if _, err := r.Unmarshal(buf); err != nil {
+			return nil, err
+		}
+		return r, nil
+	case SDRTypeCompactSensor:
+		r := &SDRCompactSensor{SDRCommonSensor: SDRCommonSensor{args: c.args, header: header}}
 		if _, err := r.Unmarshal(buf); err != nil {
 			return nil, err
 		}
