@@ -465,7 +465,7 @@ func sdrGetRecordHeaderAndNextID(c *Client, reservation, recordID uint16) (*sdrH
 	if _, err := header.Unmarshal(gsc.RecordData); err != nil {
 		return nil, 0, err
 	}
-	if recordID != header.RecordID {
+	if recordID != sdrFirstID && recordID != header.RecordID {
 		header.RecordID = recordID
 	}
 
