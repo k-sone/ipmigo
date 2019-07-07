@@ -484,10 +484,11 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 		if err := c.Execute(gsc); err != nil {
 			// Adjust to the upper limit that BMC can be responded
 			if e, ok := err.(*CommandError); ok && e.CompletionCode == CompletionRequestDataFieldExceedEd {
-				c.sdrReadingBytes -= 8
-				if c.sdrReadingBytes < sdrHeaderSize {
-					c.sdrReadingBytes = sdrHeaderSize
-				} else {
+				if c.sdrReadingBytes > sdrHeaderSize {
+					c.sdrReadingBytes -= 8
+					if c.sdrReadingBytes < sdrHeaderSize {
+						c.sdrReadingBytes = sdrHeaderSize
+					}
 					continue
 				}
 			}
