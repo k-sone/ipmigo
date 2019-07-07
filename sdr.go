@@ -64,16 +64,19 @@ func (r *sdrHeader) Unmarshal(buf []byte) ([]byte, error) {
 type SDR interface {
 	// Returns record type
 	Type() SDRType
+	// Returns record id
+	ID() uint16
 	// Returns bytes of the record key and body
 	Data() []byte
 }
 
 type sdrRaw struct {
-	rtype SDRType
-	data  []byte
+	header *sdrHeader
+	data   []byte
 }
 
-func (r *sdrRaw) Type() SDRType  { return r.rtype }
+func (r *sdrRaw) Type() SDRType  { return r.header.RecordType }
+func (r *sdrRaw) ID() uint16     { return r.header.RecordID }
 func (r *sdrRaw) Data() []byte   { return r.data }
 func (r *sdrRaw) String() string { return hex.EncodeToString(r.data) }
 
@@ -84,8 +87,9 @@ func (r *sdrRaw) Unmarshal(buf []byte) ([]byte, error) {
 
 // Intersection of FullSensor and CompactSensor
 type SDRCommonSensor struct {
-	args *Arguments
-	data []byte
+	args   *Arguments
+	header *sdrHeader
+	data   []byte
 
 	OwnerID       uint8
 	OwnerLUN      uint8
@@ -135,7 +139,9 @@ type SDRCommonSensor struct {
 	}
 }
 
-func (r *SDRCommonSensor) Data() []byte { return r.data }
+func (r *SDRCommonSensor) Type() SDRType { return r.header.RecordType }
+func (r *SDRCommonSensor) ID() uint16    { return r.header.RecordID }
+func (r *SDRCommonSensor) Data() []byte  { return r.data }
 
 func (r *SDRCommonSensor) Unmarshal(buf []byte) ([]byte, error) {
 	if l := len(buf); l < sdrCommonSensorSize {
@@ -220,8 +226,6 @@ type SDRFullSensor struct {
 	IDLength uint8
 	IDString []byte
 }
-
-func (r *SDRFullSensor) Type() SDRType { return SDRTypeFullSensor }
 
 func (r *SDRFullSensor) Unmarshal(buf []byte) ([]byte, error) {
 	if l := len(buf); l < sdrFullSensorSize {
@@ -369,7 +373,8 @@ func (r *SDRFullSensor) UnitString() string {
 
 // FRU Device Locator Record (Section 43.8)
 type SDRFRUDeviceLocator struct {
-	data []byte
+	header *sdrHeader
+	data   []byte
 
 	SlaveAddress       uint8
 	DeviceID           uint8
@@ -391,7 +396,8 @@ type SDRFRUDeviceLocator struct {
 	IDString []byte
 }
 
-func (r *SDRFRUDeviceLocator) Type() SDRType { return SDRTypeFRUDeviceLocator }
+func (r *SDRFRUDeviceLocator) Type() SDRType { return r.header.RecordType }
+func (r *SDRFRUDeviceLocator) ID() uint16    { return r.header.RecordID }
 func (r *SDRFRUDeviceLocator) Data() []byte  { return r.data }
 
 func (r *SDRFRUDeviceLocator) Unmarshal(buf []byte) ([]byte, error) {
@@ -501,21 +507,21 @@ func sdrGetRecord(c *Client, reservation uint16, header *sdrHeader) (SDR, error)
 	// TODO Add a new record type
 	switch t := header.RecordType; t {
 	case SDRTypeFullSensor:
-		r := &SDRFullSensor{SDRCommonSensor: SDRCommonSensor{args: c.args}}
+		r := &SDRFullSensor{SDRCommonSensor: SDRCommonSensor{args: c.args, header: header}}
 		if _, err := r.Unmarshal(buf); err != nil {
 			return nil, err
 		}
 		return r, nil
 	case SDRTypeFRUDeviceLocator:
-		r := &SDRFRUDeviceLocator{}
+		r := &SDRFRUDeviceLocator{header: header}
 		if _, err := r.Unmarshal(buf); err != nil {
 			return nil, err
 		}
 		return r, nil
 	default:
 		return &sdrRaw{
-			rtype: header.RecordType,
-			data:  buf,
+			header: header,
+			data:   buf,
 		}, nil
 	}
 }
