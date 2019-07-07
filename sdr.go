@@ -526,7 +526,7 @@ func SDRGetAllRecordsRepo(c *Client) ([]SDR, error) {
 }
 
 // Returns sensor records from SDR repository.
-func SDRGetRecordsRepo(c *Client, filter func(t SDRType) bool) ([]SDR, error) {
+func SDRGetRecordsRepo(c *Client, filter func(id uint16, t SDRType) bool) ([]SDR, error) {
 	gic := &GetSDRRepositoryInfoCommand{}
 	if err := c.Execute(gic); err != nil {
 		return nil, err
@@ -567,7 +567,7 @@ retry:
 			}
 		}
 
-		if filter == nil || filter(header.RecordType) {
+		if filter == nil || filter(header.RecordID, header.RecordType) {
 			record, err := sdrGetRecord(c, reservation, header)
 			if err != nil {
 				if e, ok := err.(*CommandError); ok && e.CompletionCode == CompletionReservationCancelled {
