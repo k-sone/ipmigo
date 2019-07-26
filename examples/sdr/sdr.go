@@ -95,7 +95,7 @@ func main() {
 					}
 					reading = fmt.Sprintf("%.2f", convf(gsr.SensorReading))
 				} else {
-					reading = fmt.Sprintf("0x%d", gsr.SensorReading)
+					reading = fmt.Sprintf("0x%02x", gsr.SensorReading)
 				}
 			}
 		}
