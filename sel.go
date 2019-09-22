@@ -75,6 +75,75 @@ func (r *SELEventRecord) Unmarshal(buf []byte) ([]byte, error) {
 	return buf[selRecordSize:], nil
 }
 
+// Returns `true'` if it is assertion event.
+func (r *SELEventRecord) IsAssertionEvent() bool { return r.EventDir == 0 }
+
+// Returns trigger reading of threshold-base sensor.
+func (r *SELEventRecord) GetEventTriggerReading() (uint8, bool) {
+	if r.EventType.IsThreshold() && r.EventData1&0xc0 == 0x40 && r.EventData2 != 0xff {
+		return r.EventData2, true
+	}
+	return 0, false
+}
+
+// Returns trigger threshold value of threshold-base sensor.
+func (r *SELEventRecord) GetEventTriggerThreshold() (uint8, bool) {
+	if r.EventType.IsThreshold() && r.EventData1&0x30 == 0x10 && r.EventData3 != 0xff {
+		return r.EventData3, true
+	}
+	return 0, false
+}
+
+// Returns event description.
+func (r *SELEventRecord) Description() string {
+	var f func() (string, bool)
+	switch t := r.EventType; {
+	case t.IsGeneric() || t.IsThreshold():
+		f = func() (string, bool) {
+			offset := r.EventData1 & 0x0f
+			desc, ok := sensorGenericEventDesc[uint32(r.EventType)<<8|uint32(offset)]
+			return desc, ok
+		}
+	case t.IsSensorSpecific():
+		f = func() (string, bool) {
+			d2 := uint8(0xff)
+			if r.EventData1&0xc0 != 0 {
+				d2 = r.EventData2
+			}
+			d3 := uint8(0xff)
+			if r.EventData1&0x30 != 0 {
+				d3 = r.EventData3
+			}
+
+			offset := r.EventData1 & 0x0f
+			for {
+				// First, try to get a more detailed definition
+				desc, ok := sensorSpecificEventDesc[uint32(r.SensorType)<<24|uint32(offset)<<16|uint32(d2)<<8|uint32(d3)]
+				if !ok && (d2 != 0xff || d3 != 0xff) {
+					// If not found, get a general definition
+					d2, d3 = 0xff, 0xff
+					continue
+				}
+				return desc, ok
+			}
+		}
+	case t.IsOEM():
+		f = func() (string, bool) {
+			return fmt.Sprintf("OEM Event: Type=0x%02x, Data1=0x%02x, Data2=0x%02x, Data3=0x%02x",
+				r.EventType, r.EventData1, r.EventData2, r.EventData3), true
+		}
+	default:
+		f = func() (string, bool) { return "", false }
+	}
+
+	if desc, ok := f(); ok {
+		return desc
+	} else {
+		return fmt.Sprintf("Event: Type=0x%02x, Data1=0x%02x, Data2=0x%02x, Data3=0x%02x",
+			r.EventType, r.EventData1, r.EventData2, r.EventData3)
+	}
+}
+
 // Timestamped OEM SEL record (Section 32.2)
 type SELTimestampedOEMRecord struct {
 	data []byte
