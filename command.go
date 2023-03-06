@@ -91,7 +91,7 @@ func (c CompletionCode) String() string {
 	case CompletionIllegalCommandDisabled:
 		return "Command sub-function has been disabled or is unavailable"
 	default:
-		return fmt.Sprintf("0x%02x", c)
+		return fmt.Sprintf("0x%02x", uint8(c))
 	}
 }
 
